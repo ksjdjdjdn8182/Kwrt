@@ -122,3 +122,11 @@ jobs:
         cd openwrt
         chmod +x ${{ github.workspace }}/devices/common/diy.sh
         bash ${{ github.workspace }}/devices/common/diy.sh
+
+    - name: Upload firmware artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: OpenWrt_x86_Firmware_${{ env.VERSION }}
+        path: |
+          openwrt/bin/targets/x86/*/*.img.gz
+          openwrt/bin/targets/x86/*/*.tar.gz
