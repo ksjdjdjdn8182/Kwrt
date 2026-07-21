@@ -116,9 +116,8 @@ jobs:
     - name: Clone source code
       run: |
         set -x
-        # 放弃ghproxy代理，直接原生GitHub地址，规避跳转问题；硬编码仓库、分支，跳过ini变量读取故障
         REPO_URL=https://github.com/kiddin9/OpenWrt
-        REPO_BRANCH=25.12
+        REPO_BRANCH=master
         git clone --depth 1 -b "${REPO_BRANCH}" "${REPO_URL}" openwrt
         cd openwrt
         chmod +x ${{ github.workspace }}/devices/common/diy.sh
