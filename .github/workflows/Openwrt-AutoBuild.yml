@@ -118,7 +118,7 @@ jobs:
         set -x
         PROXY_PREFIX="https://ghproxy.com/"
         CLONE_URL="${PROXY_PREFIX}${REPO_URL}"
-        git clone --depth 1 -b ${REPO_BRANCH} ${CLONE_URL} openwrt
+        git clone --depth 1 -b "${REPO_BRANCH}" "${CLONE_URL}" openwrt
         cd openwrt
         chmod +x ${{ github.workspace }}/devices/common/diy.sh
         bash ${{ github.workspace }}/devices/common/diy.sh
