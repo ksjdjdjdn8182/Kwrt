@@ -42,3 +42,16 @@ echo "CONFIG_PACKAGE_luci-app-openclash=y" >> .config
 
 # ====================== 5. 清空开机初始化脚本，避免篡改网络 ======================
 echo "" > package/base-files/files/etc/uci-defaults/99-custom-init
+# ====================== 新增：首次开机延迟8秒重启网络（仅执行一次） ======================
+mkdir -p package/base-files/files/etc/uci-defaults
+cat > package/base-files/files/etc/uci-defaults/99-once-network-reload <<'EOF'
+#!/bin/sh
+# 首次开机等待8秒，网卡就绪后重启网络，只运行1次
+if [ ! -f /etc/network_reload_done ];then
+    sleep 8
+    uci commit network
+    /etc/init.d/network restart
+    touch /etc/network_reload_done
+fi
+EOF
+chmod 755 package/base-files/files/etc/uci-defaults/99-once-network-reload
