@@ -116,7 +116,7 @@ jobs:
     - name: Clone source code
       run: |
         set -x
-        REPO_URL=https://github.com/kiddin9/OpenWrt
+        REPO_URL=https://github.com/coolsnowwolf/lede
         REPO_BRANCH=master
         git clone --depth 1 -b "${REPO_BRANCH}" "${REPO_URL}" openwrt
         cd openwrt
