@@ -114,7 +114,21 @@ jobs:
         cp -rf devices openwrt/
         cd openwrt
         chmod +x devices/common/$DIY_SH
+
+        # ========== 新增调试代码：打印所有sed行号 + 命令追踪 ==========
+        echo "===================== [调试] common/diy.sh 全部sed命令行号 ====================="
+        grep -n "sed -i" devices/common/$DIY_SH
+        echo "======================================================================================"
+        echo "===================== [调试] x86_64/diy.sh 全部sed命令行号 ====================="
+        grep -n "sed -i" devices/${{ env.TARGET }}/$DIY_SH
+        echo "======================================================================================"
+
+        # 开启shell命令追踪，执行公共diy脚本
+        set -x
         /bin/bash "devices/common/$DIY_SH"
+        set +x
+        # ======================================================================================
+
         cp -f devices/common/$CONFIG_FILE .config
         if [ -f "devices/${{ env.TARGET }}/$CONFIG_FILE" ]; then
           echo >> .config
@@ -122,7 +136,10 @@ jobs:
         fi
         if [ -f "devices/${{ env.TARGET }}/$DIY_SH" ]; then
           chmod +x devices/${{ env.TARGET }}/$DIY_SH
+          # 机型脚本同样开启追踪
+          set -x
           /bin/bash "devices/${{ env.TARGET }}/$DIY_SH"
+          set +x
         fi
 
     - name: 批量自动应用补丁
