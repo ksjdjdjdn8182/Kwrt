@@ -22,21 +22,18 @@ export -f git_clone_path
 
 shopt -s extglob
 
-# feeds源添加，无复杂匹配，安全sed
+# feeds源添加，极简无冲突
 sed -i '$a src-git kiddin9 https://github.com/kiddin9/op-packages.git;main' feeds.conf.default
 sed -i "/telephony/d" feeds.conf.default
 
-# 简单替换，无括号分组
 sed -i "s?targets/%S/packages?targets/%S/\$(LINUX_VERSION)?" include/feeds.mk
 sed -i '/	refresh_config();/d' scripts/feeds
 sed -i "s?git.openwrt.org/\(project\|feed\)?github.com/openwrt?g" feeds.conf.default
 
-# 更新安装插件源
 ./scripts/feeds update -a
 ./scripts/feeds install -a -p kiddin9 -f
 ./scripts/feeds install -a
 
-# 基础文本替换，无冲突字符
 sed --follow-symlinks -i "s#%C\"#%C by Kiddin'\"#" package/base-files/files/etc/os-release
 sed -i -e '$a /etc/bench.log' \
         -e '/\/etc\/profile/d' \
@@ -71,7 +68,7 @@ coremark wget-ssl curl autocore htop nano zram-swap kmod-lib-zstd kmod-tcp-bbr b
 
 sed -i "s/^.*vermagic$/\techo '1' > \$(LINUX_DIR)\/.vermagic/" include/kernel-defaults.mk
 
-# 固定分支，无任何GraphQL API查询逻辑
+# 固定分支，无任何GitHub API查询逻辑
 REPO_BRANCH="openwrt-25.12"
 
 # 注释kiddin9 API等待循环，消除额外github接口请求
@@ -107,10 +104,16 @@ sed -i -e "/\(# \)\?REVISION:=/c\REVISION:=$date" -e '/VERSION_CODE:=/c\VERSION_
 # rpcd超时延长
 sed -i 's/option timeout 30/option timeout 60/g' package/system/rpcd/files/rpcd.config
 
-# ===================== 已完全删除所有kiddin9包复杂sed替换 =====================
-# 注释掉会持续报错的golang路径替换，彻底规避$(TOPDIR)变量冲突
-# sed -i 's|../../lang|$(TOPDIR)/feeds/packages/lang|' package/feeds/kiddin9/*/Makefile
-# =====================================================================================
+# ===================== 已完整加回移除的kiddin9包替换逻辑，拆分多条sed无正则分组 =====================
+sed -i 's|+luci | |g' package/feeds/kiddin9/*/Makefile
+sed -i 's|+luci-ssl | |g' package/feeds/kiddin9/*/Makefile
+sed -i 's|+uhttpd | |g' package/feeds/kiddin9/*/Makefile
+sed -i 's|+nginx |+nginx-ssl |g' package/feeds/kiddin9/*/Makefile
+sed -i 's|+python |+python3 |g' package/feeds/kiddin9/*/Makefile
+
+# 加回golang路径替换语句，无分组正则不会冲突
+sed -i 's|../../lang|$(TOPDIR)/feeds/packages/lang|' package/feeds/kiddin9/*/Makefile
+# ==================================================================================================================
 
 # 固件名称修改为Kwrt
 sed -i "s/OpenWrt/Kwrt/g" package/base-files/files/bin/config_generate package/base-files/image-config.in package/network/config/wifi-scripts/files/lib/wifi/mac80211.uc config/Config-images.in Config.in include/u-boot.mk include/version.mk || true
