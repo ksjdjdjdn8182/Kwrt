@@ -99,17 +99,16 @@ sed -i -e "/\(# \)\?REVISION:=/c\REVISION:=$date" -e '/VERSION_CODE:=/c\VERSION_
 
 sed -i 's/option timeout 30/option timeout 60/g' package/system/rpcd/files/rpcd.config
 
-# ====================== 完全注释所有带括号分组匹配的sed，彻底规避报错 ======================
-# 下面这段会持续报错，直接全部注释禁用
-# sed -i \
-# 	-e "s|+\(luci\|luci-ssl\|uhttpd\)\( \|$\)|\2|" \
-# 	-e "s|+nginx\( \|$\)|+nginx-ssl\1|" \
-# 	-e 's|+python\( \|$\)|+python3|' \
-# 	package/feeds/kiddin9/*/Makefile
+# ====================== 方案2：拆分独立sed，移除分组()语法 ======================
+sed -i 's|+luci | |g' package/feeds/kiddin9/*/Makefile
+sed -i 's|+luci-ssl | |g' package/feeds/kiddin9/*/Makefile
+sed -i 's|+uhttpd | |g' package/feeds/kiddin9/*/Makefile
+sed -i 's|+nginx |+nginx-ssl |g' package/feeds/kiddin9/*/Makefile
+sed -i 's|+python |+python3 |g' package/feeds/kiddin9/*/Makefile
 
-# 仅保留纯路径替换，无任何括号、分组、转义字符，100%兼容老旧sed
+# golang路径替换保留
 sed -i 's|../../lang|$(TOPDIR)/feeds/packages/lang|' package/feeds/kiddin9/*/Makefile
-# =====================================================================================================
+# ======================================================================================
 
 sed -i "s/OpenWrt/Kwrt/g" package/base-files/files/bin/config_generate package/base-files/image-config.in package/network/config/wifi-scripts/files/lib/wifi/mac80211.uc config/Config-images.in Config.in include/u-boot.mk include/version.mk || true
 
