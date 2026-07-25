@@ -3,26 +3,20 @@
 # 补充脚本依赖函数，避免单独执行报错
 function git_clone_path() {
   trap 'rm -rf "$tmpdir"' EXIT
-  branch="$1" rurl="$2" mv="$3"
-  [[ "$mv" != "mv" ]] && shift 2 || shift 3
+  branch="$1" rurl="$2"
   rootdir="$PWD"
   tmpdir="$(mktemp -d)" || exit 1
-  if [ ${#branch} -lt 10 ]; then
   git clone -b "$branch" --depth 1 --filter=blob:none --sparse "$rurl" "$tmpdir"
   cd "$tmpdir"
-  else
-  git clone --filter=blob:none --sparse "$rurl" "$tmpdir"
-  cd "$tmpdir"
   git checkout $branch
-  fi
   if [ "$?" != 0 ]; then
     echo "error on $rurl"
     exit 1
   fi
   git sparse-checkout init --cone
   git sparse-checkout set $@
-  [[ "$mv" != "mv" ]] && cp -rn ./* $rootdir/ || mv -n $@/* $rootdir/$@/
-  cd $rootdir
+  cp -rn ./* "$rootdir/"
+  cd "$rootdir"
 }
 export -f git_clone_path
 
@@ -87,16 +81,17 @@ wget -N https://raw.githubusercontent.com/openwrt/packages/master/lang/golang/go
 
 sed -i "/+= targz/d" include/image.mk
 
-# 修复1：先删除原有hack补丁目录，解决mv不覆盖报错
-rm -rf target/linux/generic/hack-6.12
-git_clone_path master https://github.com/coolsnowwolf/lede mv target/linux/generic/hack-6.12
+# 修复mv目标不存在报错：改用临时目录复制补丁
+mkdir -p target/linux/generic/
+TMP_HACK=$(mktemp -d)
+git clone -b master --depth 1 https://github.com/coolsnowwolf/lede "$TMP_HACK"
+cp -rf "$TMP_HACK/target/linux/generic/hack-6.12" target/linux/generic/
+rm -rf "$TMP_HACK"
 
 rm -rf target/linux/generic/hack-6.12/767-net-phy-realtek-add-led*
 wget -N https://raw.githubusercontent.com/coolsnowwolf/lede/master/target/linux/generic/pending-6.12/613-netfilter_optional_tcp_window_check.patch -P target/linux/generic/pending-6.12/
 
-# find target/linux/x86 -name "config*" -exec bash -c 'cat kernel.conf >> "{}"' \;
 sed -i 's/max_requests 3/max_requests 20/g' package/network/services/uhttpd/files/uhttpd.config
-#rm -rf ./feeds/packages/lang/{golang,node}
 sed -i "s/tty\(0\|1\)::askfirst/tty\1::respawn/g" target/linux/*/base-files/etc/inittab
 
 date=`date +%m.%d.%Y`
@@ -104,7 +99,7 @@ sed -i -e "/\(# \)\?REVISION:=/c\REVISION:=$date" -e '/VERSION_CODE:=/c\VERSION_
 
 sed -i 's/option timeout 30/option timeout 60/g' package/system/rpcd/files/rpcd.config
 
-# 修复2：sed替换分隔符改为#，解决路径/冲突报错
+# 全部4条sed语句统一使用#分隔符，彻底解决路径/冲突报错
 sed -i \
 	-e "s#+\(luci\|luci-ssl\|uhttpd\)\( \|$\)#\2#" \
 	-e "s#+nginx\( \|$\)#+nginx-ssl\1#" \
