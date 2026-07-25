@@ -1,9 +1,11 @@
 #!/bin/bash
 set -e
 
-# ====================== 全局替换系统软件源为 dl.openwrt.ai 25.12（修复路径报错） ======================
-# OpenWrt25.12 新版正确路径：usr/share/opkg/
-sed -i 's#https://downloads.openwrt.org/releases#https://dl.openwrt.ai/releases#g' package/base-files/files/usr/share/opkg/distfeeds.conf
+# ====================== 全局替换系统软件源为 dl.openwrt.ai 25.12（增加文件存在判断，杜绝报错） ======================
+FEED_FILE="package/base-files/files/usr/share/opkg/distfeeds.conf"
+if [ -f "$FEED_FILE" ]; then
+    sed -i 's#https://downloads.openwrt.org/releases#https://dl.openwrt.ai/releases#g' "$FEED_FILE"
+fi
 
 # ====================== 一、系统基础定制 ======================
 # 管理IP改为192.168.2.1
