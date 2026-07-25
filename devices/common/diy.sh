@@ -99,7 +99,7 @@ sed -i -e "/\(# \)\?REVISION:=/c\REVISION:=$date" -e '/VERSION_CODE:=/c\VERSION_
 
 sed -i 's/option timeout 30/option timeout 60/g' package/system/rpcd/files/rpcd.config
 
-# 核心修复：注释掉包含$(TOPDIR)变量的冲突替换语句，彻底消除sed语法报错
+# 核心修复：彻底删除带$(TOPDIR)变量的冲突sed语句，仅保留3条无冲突替换
 sed -i \
 	-e "s|+\(luci\|luci-ssl\|uhttpd\)\( \|$\)|\2|" \
 	-e "s|+nginx\( \|$\)|+nginx-ssl\1|" \
