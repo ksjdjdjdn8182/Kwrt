@@ -71,7 +71,7 @@ coremark wget-ssl curl autocore htop nano zram-swap kmod-lib-zstd kmod-tcp-bbr b
 
 sed -i "s/^.*vermagic$/\techo '1' > \$(LINUX_DIR)\/.vermagic/" include/kernel-defaults.mk
 
-# 直接固定分支，无任何GraphQL API查询逻辑
+# 固定分支，无任何GraphQL API查询逻辑
 REPO_BRANCH="openwrt-25.12"
 
 # 注释kiddin9 API等待循环，消除额外github接口请求
@@ -87,12 +87,16 @@ wget -N https://raw.githubusercontent.com/openwrt/packages/master/lang/golang/go
 
 sed -i "/+= targz/d" include/image.mk
 
+# 修复1：先删除原有hack补丁目录，解决mv不覆盖报错
+rm -rf target/linux/generic/hack-6.12
 git_clone_path master https://github.com/coolsnowwolf/lede mv target/linux/generic/hack-6.12
 
 rm -rf target/linux/generic/hack-6.12/767-net-phy-realtek-add-led*
 wget -N https://raw.githubusercontent.com/coolsnowwolf/lede/master/target/linux/generic/pending-6.12/613-netfilter_optional_tcp_window_check.patch -P target/linux/generic/pending-6.12/
 
+# find target/linux/x86 -name "config*" -exec bash -c 'cat kernel.conf >> "{}"' \;
 sed -i 's/max_requests 3/max_requests 20/g' package/network/services/uhttpd/files/uhttpd.config
+#rm -rf ./feeds/packages/lang/{golang,node}
 sed -i "s/tty\(0\|1\)::askfirst/tty\1::respawn/g" target/linux/*/base-files/etc/inittab
 
 date=`date +%m.%d.%Y`
@@ -100,11 +104,12 @@ sed -i -e "/\(# \)\?REVISION:=/c\REVISION:=$date" -e '/VERSION_CODE:=/c\VERSION_
 
 sed -i 's/option timeout 30/option timeout 60/g' package/system/rpcd/files/rpcd.config
 
+# 修复2：sed替换分隔符改为#，解决路径/冲突报错
 sed -i \
-	-e "s/+\(luci\|luci-ssl\|uhttpd\)\( \|$\)/\2/" \
-	-e "s/+nginx\( \|$\)/+nginx-ssl\1/" \
-	-e 's/+python\( \|$\)/+python3/' \
-	-e 's?../../lang?$(TOPDIR)/feeds/packages/lang?' \
+	-e "s#+\(luci\|luci-ssl\|uhttpd\)\( \|$\)#\2#" \
+	-e "s#+nginx\( \|$\)#+nginx-ssl\1#" \
+	-e 's#+python\( \|$\)#+python3#' \
+	-e 's#../../lang#$(TOPDIR)/feeds/packages/lang#' \
 	package/feeds/kiddin9/*/Makefile
 
 sed -i "s/OpenWrt/Kwrt/g" package/base-files/files/bin/config_generate package/base-files/image-config.in package/network/config/wifi-scripts/files/lib/wifi/mac80211.uc config/Config-images.in Config.in include/u-boot.mk include/version.mk || true
