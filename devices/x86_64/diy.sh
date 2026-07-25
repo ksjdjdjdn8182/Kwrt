@@ -8,7 +8,7 @@ sed -i 's/192.168.1.1/192.168.2.1/g' package/base-files/files/bin/config_generat
 sed -i 's/root::0:0:root:/root:$1$V4UetPzk$CYXluq4wUazHjmCDBCqXF.:0:0:root:/root:/bin/ash/' package/base-files/files/etc/shadow
 # 主机名 Kwrt
 sed -i 's/OpenWrt/Kwrt/g' package/base-files/files/bin/config_generate
-# 清空默认WAN绑定，所有网卡默认LAN
+# 【保留】清空默认WAN绑定eth0，所有网卡默认LAN
 sed -i '/eth0/d' package/base-files/files/etc/board.d/99-default-network
 # 开启ZRAM内存压缩
 echo "zram-swap" >> target/linux/x86/Makefile
