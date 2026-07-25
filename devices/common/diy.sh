@@ -71,7 +71,10 @@ coremark wget-ssl curl autocore htop nano zram-swap kmod-lib-zstd kmod-tcp-bbr b
 
 sed -i "s/^.*vermagic$/\techo '1' > \$(LINUX_DIR)\/.vermagic/" include/kernel-defaults.mk
 
-# 如需不配置REPO_TOKEN，可删除下面整个循环代码
+# 固定锁定OpenWrt 25.12稳定分支，移除GraphQL API查询tag（解决限流报错）
+REPO_BRANCH="openwrt-25.12"
+
+# 【可选】如果不想频繁触发GitHub API限流，可删除下方等待kiddin9插件构建的循环代码
 status=$(curl -H "Authorization: token $REPO_TOKEN" -s "https://api.github.com/repos/kiddin9/op-packages/actions/runs" | jq -r '.workflow_runs[0].status')
 echo "$status"
 while [[ "$status" == "in_progress" || "$status" == "queued" ]];do
