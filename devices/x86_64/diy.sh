@@ -1,8 +1,9 @@
 #!/bin/bash
 set -e
 
-# ====================== 全局替换系统软件源为 dl.openwrt.ai 25.12 ======================
-sed -i 's#https://downloads.openwrt.org/releases#https://dl.openwrt.ai/releases#g' package/base-files/files/etc/opkg/distfeeds.conf
+# ====================== 全局替换系统软件源为 dl.openwrt.ai 25.12（修复路径报错） ======================
+# OpenWrt25.12 新版正确路径：usr/share/opkg/
+sed -i 's#https://downloads.openwrt.org/releases#https://dl.openwrt.ai/releases#g' package/base-files/files/usr/share/opkg/distfeeds.conf
 
 # ====================== 一、系统基础定制 ======================
 # 管理IP改为192.168.2.1
@@ -33,7 +34,7 @@ echo "CONFIG_PACKAGE_libstdcpp6=y" >> .config
 # ====================== 三、基础系统核心包（适配Firewall4、无冲突） ======================
 DEFAULT_PACKAGES="autocore base-files bash block-mount ca-bundle coremark curl dnsmasq-full dropbear ds-lite e2fsprogs fdisk firewall4 fstools grub2-bios-setup htop kmod-8139cp kmod-8139too kmod-amazon-ena kmod-amd-xgbe kmod-atlantic kmod-bnx2 kmod-bnx2x kmod-button-hotplug kmod-drm-amdgpu kmod-drm-i915 kmod-dwmac-intel kmod-e1000 kmod-e1000e kmod-forcedeth kmod-fs-f2fs kmod-fs-vfat kmod-i40e kmod-iavf kmod-igb kmod-igbvf kmod-igc kmod-ixgbe kmod-ixgbevf kmod-lib-zstd kmod-mlx4-core kmod-mlx5-core kmod-mmc kmod-pcnet32 kmod-phy-broadcom kmod-r8101 kmod-r8125 kmod-r8126 kmod-r8168 kmod-sdhci kmod-tcp-bbr kmod-tg3 kmod-tulip kmod-usb-hid kmod-vmxnet3 libc libgcc libustream-mbedtls lm-sensors-detect logd lsblk luci-app-advancedplus luci-app-fan luci-app-filemanager luci-app-firewall luci-app-package-manager luci-app-syscontrol luci-app-upnp luci-app-wifihistory luci-app-wizard luci-base luci-compat luci-lib-fs luci-lib-ipkg mkf2fs mtd nano netifd odhcp6c odhcpd-ipv6only openssh-sftp-server opkg partx-utils pciutils resolveip swconfig uci uclient-fetch urandom-seed urngd usbutils wget-ssl zram-swap"
 
-# ====================== 四、纯净插件合集（删除所有循环依赖插件，仅保留OpenClash） ======================
+# ====================== 四、纯净插件合集 ======================
 CUSTOM_PACKAGES="luci-app-accesscontrol-plus luci-app-acme luci-app-adbyby-plus luci-app-adguardhome luci-app-aria2 luci-app-aliyundrive-webdav luci-app-airplay2 luci-app-arpbind luci-app-cifs-mount luci-app-ddns luci-app-ddns-go luci-app-ddnsto luci-app-diskman luci-app-dufs luci-app-frpc luci-app-filebrowser luci-app-eqosplus luci-app-easytier luci-app-guest-wifi luci-app-hd-idle luci-app-frps luci-app-homeassistant luci-app-ipsec-server luci-app-ksmbd luci-app-kodexplorer luci-app-lucky luci-app-minidlna luci-app-mosdns luci-app-mwan3 luci-app-netdata luci-app-nlbwmon luci-app-oaf luci-app-openclash luci-app-parentcontrol luci-app-p910nd luci-app-openvpn-server-client luci-app-partexp luci-app-qbittorrent luci-app-qosmate luci-app-rclone luci-app-softethervpn luci-app-socat luci-app-snmpd luci-app-smartdns luci-app-samba4 luci-app-sqm-autorate luci-app-statistics luci-app-store luci-app-taskplan luci-app-tailscale-community luci-app-subconverter luci-app-timedreboot luci-app-timewol luci-app-transmission luci-app-ttyd luci-app-uugamebooster luci-app-turboacc luci-app-vlmcsd luci-app-vsftpd luci-app-watchcat luci-app-webdav luci-app-wrtbwmon luci-app-wireguard luci-app-wifischedule luci-app-wechatpush luci-app-xlnetacc luci-app-zerotier luci-theme-argon luci-theme-alpha luci-theme-material3 luci-theme-material luci-theme-aurora luci-theme-design luci-theme-kucat luci-theme-openwrt luci-theme-openwrt-2020 automount btop open-vm-tools qemu-ga kmod-iwlwifi iwlwifi-firmware kmod-mt7603 kmod-mt7612 kmod-mt7615 kmod-mt7622 kmod-rtl8821ce kmod-rtl8822be hostapd-wolf wpa-supplicant-wolf iw iw-full wireless-regdb"
 
 # ====================== 五、全新生成纯净 .config 配置 ======================
