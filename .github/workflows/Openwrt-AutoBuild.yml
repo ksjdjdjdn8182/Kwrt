@@ -1,19 +1,23 @@
 name: OpenWrt Kwrt AutoBuild x86_64
+# 并发控制：同分支新任务触发，自动取消排队/运行中的旧任务，解决大量排队堆积
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
-# 触发编译条件
+# 触发规则
 on:
-  # 推送代码触发
+  # 推送main分支自动编译（不需要自动编译可删除此段）
   push:
     branches: [ main ]
-  # 手动触发
+  # 支持手动点击触发编译
   workflow_dispatch:
     inputs:
       CLEAN_CACHE:
-        description: 是否清空编译缓存
+        description: 编译前清空全部缓存（完整重编）
         type: boolean
         default: false
 
-# 权限设置
+# 权限配置
 permissions:
   contents: read
   packages: write
@@ -22,35 +26,33 @@ jobs:
   build:
     runs-on: ubuntu-22.04
     steps:
-      - name: 安装编译依赖环境
+      - name: 安装全套编译依赖
         run: |
           sudo apt update
           sudo apt install -y ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential bzip2 ccache cmake cpio curl device-tree-compiler flex gawk gcc-multilib g++-multilib gettext git gperf libncurses-dev libssl-dev libxml-parser-perl lzma make memstat mtools ninja-build p7zip-full patch pkgconf python3 python3-pip python3-setuptools rsync scons squashfs-tools subversion swig texinfo unzip wget xsltproc xz-utils zlib1g-dev
 
-      - name: 拉取源码仓库
+      - name: 拉取 OpenWrt 25.12 官方源码
         run: |
           git clone https://github.com/openwrt/openwrt.git openwrt
           cd openwrt
-          # 可自行指定源码分支，例如 23.05
-          git checkout openwrt-23.05
+          # 【已修正】切换到最新稳定分支 openwrt-25.12
+          git checkout openwrt-25.12
 
-      - name: 复制自定义配置、补丁、diy脚本
+      - name: 复制仓库内自定义配置、补丁、diy脚本
         run: |
           cd openwrt
-          # 复制x86_64目录下全部文件（diy.sh、patches、.config）
           cp -r ../x86_64/* ./target/linux/x86_64/
-          # 进入x86_64目录执行脚本
           cd target/linux/x86_64
           chmod +x diy.sh
 
-      - name: 应用全部补丁
+      - name: 批量应用所有补丁文件
         run: |
           cd openwrt/target/linux/x86_64
           for patch in patches/*.patch; do
             patch -p1 < $patch
           done
 
-      - name: 缓存编译文件（加速下次构建）
+      - name: 缓存编译依赖，加速下次构建
         uses: actions/cache@v3
         with:
           path: |
@@ -62,7 +64,7 @@ jobs:
           restore-keys: |
             ${{ github.workflow }}-${{ github.ref }}
 
-      - name: 可选：清空缓存
+      - name: 可选：清空全部缓存完整重编
         if: github.event.inputs.CLEAN_CACHE == true
         run: |
           cd openwrt
@@ -74,12 +76,12 @@ jobs:
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
-      - name: 执行diy.sh生成完整配置
+      - name: 执行 diy.sh 生成纯净无冲突 .config
         run: |
           cd openwrt/target/linux/x86_64
           ./diy.sh
 
-      - name: 开始多线程编译固件
+      - name: 多线程编译固件
         run: |
           cd openwrt
           make -j$(nproc) V=s 2>&1 | tee build_log.txt
@@ -87,7 +89,7 @@ jobs:
       - name: 上传编译日志
         uses: actions/upload-artifact@v3
         with:
-          name: 编译日志-log
+          name: Kwrt-编译日志
           path: openwrt/build_log.txt
 
       - name: 上传生成固件镜像
