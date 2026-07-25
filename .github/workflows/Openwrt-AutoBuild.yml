@@ -24,7 +24,7 @@ jobs:
   build:
     runs-on: ubuntu-22.04
     steps:
-      # 1. 检出仓库完整代码（必须放在第一步，修复目录找不到报错）
+      # 1. 检出仓库完整代码
       - name: 检出仓库源码
         uses: actions/checkout@v4
 
@@ -44,10 +44,12 @@ jobs:
           # 添加适配25.12的kiddin9插件源码仓库
           echo "src-git kiddin9 https://github.com/kiddin9/openwrt-packages.git;openwrt-25.12" >> feeds.conf.default
 
-      # 4. 复制自定义文件（路径修正为 devices/x86_64）
+      # 4. 复制自定义文件（新增mkdir创建目录，修复目录不存在报错）
       - name: 复制仓库内自定义配置、补丁、diy脚本
         run: |
           cd openwrt
+          # 先自动创建目标目录，彻底解决 "is not a directory" 报错
+          mkdir -p ./target/linux/x86_64
           # 适配你的目录 devices/x86_64
           cp -r ../devices/x86_64/* ./target/linux/x86_64/
           cd target/linux/x86_64
