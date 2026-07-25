@@ -71,10 +71,10 @@ coremark wget-ssl curl autocore htop nano zram-swap kmod-lib-zstd kmod-tcp-bbr b
 
 sed -i "s/^.*vermagic$/\techo '1' > \$(LINUX_DIR)\/.vermagic/" include/kernel-defaults.mk
 
-# 直接固定分支，完全移除所有GraphQL查询代码
+# 固定分支，完全删除GraphQL API查询代码，无任何curl请求tag逻辑
 REPO_BRANCH="openwrt-25.12"
 
-# 注释掉kiddin9 API等待循环，不再请求github接口
+# 彻底注释掉kiddin9插件源API等待循环，不再发起github接口请求
 # status=$(curl -H "Authorization: token $REPO_TOKEN" -s "https://api.github.com/repos/kiddin9/op-packages/actions/runs" | jq -r '.workflow_runs[0].status')
 # echo "$status"
 # while [[ "$status" == "in_progress" || "$status" == "queued" ]];do
