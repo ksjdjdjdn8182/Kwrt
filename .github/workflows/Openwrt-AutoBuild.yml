@@ -1,133 +1,200 @@
-name: OpenWrt Kwrt AutoBuild x86_64
-# 并发控制：新任务自动取消旧排队任务
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+#=================================================
+# 基于kiddin9上游yml精简，仅适配x86_64，手动一键编译
+#=================================================
+name: Build OpenWrt x86_64
 
-# 触发规则
-on:
-  push:
-    branches: [ main ]
+# 改为手动触发，页面直接Run workflow
+on: 
   workflow_dispatch:
     inputs:
-      CLEAN_CACHE:
-        description: 编译前清空全部缓存（完整重新编译）
+      nocache:
+        description: 清空缓存完整重编
+        type: boolean
+        default: false
+      ssh:
+        description: 开启SSH远程调试
         type: boolean
         default: false
 
-# 权限配置
-permissions:
-  contents: read
-  packages: write
+env:
+  TZ: Asia/Shanghai
+  # 固定机型为x86_64，删除矩阵
+  TARGET: "x86_64"
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
+    name: Build x86_64
+    
     steps:
-      # 1. 检出仓库完整代码
-      - name: 检出仓库源码
-        uses: actions/checkout@v4
+    - name: Checkout 仓库代码
+      uses: actions/checkout@main
+      with:
+          fetch-depth: 0
 
-      # 2. 安装全套编译依赖
-      - name: 安装全套编译依赖
-        run: |
-          sudo apt update
-          sudo apt install -y ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential bzip2 ccache cmake cpio curl device-tree-compiler flex gawk gcc-multilib g++-multilib gettext git gperf libncurses-dev libssl-dev libxml-parser-perl lzma make memstat mtools ninja-build p7zip-full patch pkgconf python3 python3-pip python3-setuptools rsync scons squashfs-tools subversion swig texinfo unzip wget xsltproc xz-utils zlib1g-dev
+    - name: 加载全局&机型配置
+      run: |
+        source "${{ github.workspace }}/devices/common/settings.ini"
+        if [ -f "devices/${{ env.TARGET }}/settings.ini" ]; then
+          source "${{ github.workspace }}/devices/${{ env.TARGET }}/settings.ini"
+        fi
+        echo "REPO_URL=${REPO_URL}" >> $GITHUB_ENV
+        echo "REPO_BRANCH=${REPO_BRANCH}" >> $GITHUB_ENV
+        echo "CONFIG_FILE=${CONFIG_FILE}" >> $GITHUB_ENV
+        echo "DIY_SH=${DIY_SH}" >> $GITHUB_ENV
+        echo "FREE_UP_DISK=${FREE_UP_DISK}" >> $GITHUB_ENV
 
-      # 3. 拉取 OpenWrt 25.12 源码 + kiddin9插件源（屏蔽Git HTTPS鉴权弹窗）
-      - name: 拉取 OpenWrt 25.12 官方源码 + kiddin9插件源码源
-        run: |
-          # 全局Git配置，屏蔽HTTPS账号密码弹窗鉴权
-          git config --global url."https://github.com/".insteadOf git@github.com:
-          git config --global core.askPass ""
-          git config --global credential.helper store
-          
-          # 克隆OpenWrt源码，移除不兼容的--retry参数
-          git clone https://github.com/openwrt/openwrt.git openwrt
-          cd openwrt
-          # 锁定25.12稳定分支
-          git checkout openwrt-25.12
-          
-          # 写入原版Github kiddin9插件源
-          echo "src-git kiddin9 https://github.com/kiddin9/openwrt-packages.git;openwrt-25.12" >> feeds.conf.default
+    - name: 深度清理磁盘空间（上游核心优化，解决空间不足）
+      uses: coder-xiaomo/free-disk-space@main
+      with:
+        tool-cache: false
+        android: true
+        dotnet: true
+        haskell: true
+        large-packages: true
+        docker-images: true
+        swap-storage: true
 
-      # 4. 复制自定义文件（自动创建目标目录，修复目录不存在报错）
-      - name: 复制仓库内自定义配置、补丁、diy脚本
-        run: |
-          cd openwrt
-          mkdir -p ./target/linux/x86_64
-          cp -r ../devices/x86_64/* ./target/linux/x86_64/
-          cd target/linux/x86_64
-          chmod +x diy.sh
+    - name: 初始化编译环境
+      env:
+        DEBIAN_FRONTEND: noninteractive
+      run: |
+        sudo -E apt-get -qq update
+        sudo -E apt-get -qq install build-essential clang flex bison g++ gawk \
+        gcc-multilib g++-multilib gettext git libncurses5-dev libssl-dev \
+        python3-setuptools rsync swig unzip zlib1g-dev file wget dwarves \
+        llvm python3-pyelftools libpython3-dev aria2 jq qemu-utils ccache rename \
+        libelf-dev device-tree-compiler libgmp3-dev libmpc-dev libfuse-dev
+        sudo -E apt-get -qq autoremove --purge
+        sudo -E apt-get -qq clean
+        sudo timedatectl set-timezone "Asia/Shanghai"
+        git config --global user.email "actions@github.com"
+        git config --global user.name "Github Actions"
 
-      # 5. 批量应用补丁（容错，补丁失败不终止编译）
-      - name: 批量应用所有补丁文件
-        run: |
-          cd openwrt/target/linux/x86_64
-          for patch in patches/*.patch; do
-            echo "正在应用补丁：$patch"
-            patch -p1 --ignore-errors < $patch || true
-          done
+    - name: 拉取OpenWrt源码，自动识别25.x最新分支
+      run: |
+        set -x
+        TAG_INFO="$(curl -gs -H 'Content-Type: application/json' \
+           -X POST -d '{ "query": "query {repository(owner: \"openwrt\", name: \"openwrt\") {refs(refPrefix: \"refs/tags/\", first: 4, orderBy: {field: TAG_COMMIT_DATE, direction: DESC}) {nodes {name target { ... on Tag {tagger {date}}}}}}}"}' https://api.github.com/graphql)"
+        TAG_DATE="$( echo ${TAG_INFO} | jq -r '.data.repository.refs.nodes[] | select(.name | startswith("v25")) | .target.tagger.date' | head -n 1)"
+        if [[ $(( ($(date +%s) - $(date -d "$TAG_DATE" +%s)) / 86400 )) -lt 10 ]]; then
+        REPO_BRANCH="$( echo ${TAG_INFO} | jq -r '.data.repository.refs.nodes[].name' | grep v25 | head -n 1)"
+        else
+        REPO_BRANCH="openwrt-25.12"
+        fi
+        if [[ ! "${{ env.REPO_BRANCH }}" && "$REPO_URL" == "https://github.com/openwrt/openwrt" ]]; then
+            git clone $REPO_URL -b $REPO_BRANCH openwrt
+        elif [[ ! "${{ env.REPO_BRANCH }}" ]]; then
+            git clone $REPO_URL openwrt
+        else
+            REPO_BRANCH="${{env.REPO_BRANCH}}"
+            if [[ ${#REPO_BRANCH} -lt 10 ]]; then
+                git clone $REPO_URL -b ${REPO_BRANCH} openwrt
+            else
+                git clone $REPO_URL openwrt
+                cd openwrt
+                git checkout ${REPO_BRANCH}
+            fi
+        fi
 
-      # 6. 缓存编译依赖，加速多次构建
-      - name: 缓存编译依赖，加速多次构建
-        uses: actions/cache@v3
-        with:
-          path: |
-            openwrt/build_dir
-            openwrt/staging_dir
-            openwrt/dl
-            ~/.ccache
-          key: ${{ github.workflow }}-${{ github.ref }}-${{ github.sha }}
-          restore-keys: |
-            ${{ github.workflow }}-${{ github.ref }}
+    - name: 挂载外置分区缓存编译目录
+      run: |
+        sudo mkdir -p -m 777 /mnt/openwrt/build_dir openwrt/staging_dir
+        ln -sf /mnt/openwrt/build_dir openwrt/build_dir
+        sudo ln -sf openwrt/staging_dir /mnt/openwrt/staging_dir
 
-      # 7. 可选：清空全部缓存完整重编
-      - name: 可选：清空全部缓存完整重编
-        if: github.event.inputs.CLEAN_CACHE == true
-        run: |
-          cd openwrt
-          rm -rf build_dir staging_dir dl tmp .config
+    - name: 加载自定义配置、执行diy脚本
+      run: |
+        function git_clone_path() {
+          trap 'rm -rf "$tmpdir"' EXIT
+          branch="$1" rurl="$2" mv="$3"
+          [[ "$mv" != "mv" ]] && shift 2 || shift 3
+          rootdir="$PWD"
+          tmpdir="$(mktemp -d)" || exit 1
+          if [ ${#branch} -lt 10 ]; then
+          git clone -b "$branch" --depth 1 --filter=blob:none --sparse "$rurl" "$tmpdir"
+          cd "$tmpdir"
+          else
+          git clone --filter=blob:none --sparse "$rurl" "$tmpdir"
+          cd "$tmpdir"
+          git checkout $branch
+          fi
+          if [ "$?" != 0 ]; then
+            echo "error on $rurl"
+            exit 1
+          fi
+          git sparse-checkout init --cone
+          git sparse-checkout set $@
+          [[ "$mv" != "mv" ]] && cp -rn ./* $rootdir/ || mv -n $@/* $rootdir/$@/
+          cd $rootdir
+          }
+        export -f git_clone_path
+        mkdir -p openwrt
+        cp -rf devices/common/. openwrt/
+        cp -rf devices/${{ env.TARGET }}/. openwrt/
+        cp -rf devices openwrt/
+        cd openwrt
+        chmod +x devices/common/$DIY_SH
+        /bin/bash "devices/common/$DIY_SH"
+        cp -f devices/common/$CONFIG_FILE .config
+        if [ -f "devices/${{ env.TARGET }}/$CONFIG_FILE" ]; then
+          echo >> .config
+          cat devices/${{ env.TARGET }}/$CONFIG_FILE >> .config
+        fi
+        if [ -f "devices/${{ env.TARGET }}/$DIY_SH" ]; then
+          chmod +x devices/${{ env.TARGET }}/$DIY_SH
+          /bin/bash "devices/${{ env.TARGET }}/$DIY_SH"
+        fi
 
-      # 8. 更新并安装插件源（分步执行，单源失败不中断流程）
-      - name: 更新并安装全部插件源 feeds
-        run: |
-          cd openwrt
-          ./scripts/feeds update packages || true
-          ./scripts/feeds update luci || true
-          ./scripts/feeds update routing || true
-          ./scripts/feeds update telephony || true
-          ./scripts/feeds update video || true
-          ./scripts/feeds update kiddin9 || true
-          ./scripts/feeds install -a
+    - name: 批量自动应用补丁
+      run: |
+        cd openwrt
+        cp -rn devices/common/patches devices/${{ env.TARGET }}/
+        if [ -n "$(ls -A devices/${{ env.TARGET }}/*.bin.patch 2>/dev/null)" ]; then
+          git apply devices/${{ env.TARGET }}/patches/*.bin.patch
+        fi
+        find "devices/${{ env.TARGET }}/patches" -maxdepth 1 -type f -name '*.revert.patch' -print0 | sort -z | xargs -I % -t -0 -n 1 sh -c "patch -d './' -R --no-backup-if-mismatch -p1 -F 1 -i '%'"
+        find "devices/${{ env.TARGET }}/patches" -maxdepth 1 -type f -name '*.patch' ! -name '*.revert.patch' ! -name '*.bin.patch' -print0 | sort -z | xargs -I % -t -0 -n 1 sh -c "patch -d './' --no-backup-if-mismatch -p1 -F 1 -i '%'"
 
-      # 9. 执行 diy.sh 生成纯净无冲突 .config 配置
-      - name: 执行 diy.sh 生成纯净无冲突 .config
-        run: |
-          cd openwrt/target/linux/x86_64
-          ./diy.sh
+    - name: Defconfig 同步配置
+      run: |
+        cd openwrt
+        make defconfig
+        # x86架构无需关闭无线驱动，删除多机型判断
+        cat .config
 
-      # 10. 多线程编译固件（核心修复：解决 unknown terminal 终端报错）
-      - name: 多线程编译固件
-        run: |
-          cd openwrt
-          # 模拟终端环境，消除menuconfig终端报错
-          export TERM=xterm
-          # 静默同步配置，跳过图形menuconfig交互
-          make defconfig
-          # 多线程编译并输出日志
-          make -j$(nproc) V=s 2>&1 | tee build_log.txt
+    - name: 编译缓存加速
+      uses: stupidloud/cachewrtbuild@main
+      with:
+        ccache: 'false'
+        mixkey: ${{ env.TARGET }}
+        clean: ${{ github.event.inputs.nocache }}
+        prefix: ${{ github.workspace }}/openwrt
 
-      # 11. 上传编译日志（升级v4消除版本废弃报错）
-      - name: 上传编译日志
-        uses: actions/upload-artifact@v4
-        with:
-          name: Kwrt-编译日志
-          path: openwrt/build_log.txt
+    - name: SSH远程调试（可选开启）
+      uses: kiddin9/debugger-action@master
+      if: github.event.inputs.ssh == true
 
-      # 12. 上传生成固件镜像（修复路径：x86_64，原错误x86/64）
-      - name: 上传生成固件镜像
-        uses: actions/upload-artifact@v4
-        with:
-          name: Kwrt-x86_64-固件镜像
-          path: openwrt/bin/targets/x86_64/
+    - name: 编译固件（失败自动输出完整日志）
+      id: compile
+      run: |
+        shopt -s extglob
+        df -hT
+        cd openwrt
+        echo -e "$(($(nproc)+1)) 线程编译"
+        make -j$(($(nproc)+1)) || { log=$(mktemp);make V=s &>$log; tail -50 $log;df -hT;exit 1; }
+        df -hT
+
+    - name: 整理固件文件
+      continue-on-error: true
+      run: |
+        shopt -s extglob
+        cd openwrt/bin/targets/*/*/
+        cp $GITHUB_WORKSPACE/openwrt/.config ${{ env.TARGET }}.config || true
+
+    - name: 上传固件至Artifact（下载产物）
+      uses: actions/upload-artifact@main
+      with:
+        name: OpenWrt_x86_64_固件
+        path: |
+          openwrt/bin/targets/
