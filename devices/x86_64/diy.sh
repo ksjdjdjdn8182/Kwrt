@@ -1,21 +1,33 @@
 #!/bin/bash
 set -e
 
-# ====================== 全局替换系统软件源为 dl.openwrt.ai 25.12（增加文件存在判断，杜绝报错） ======================
+# ====================== 全局替换系统软件源为 dl.openwrt.ai 25.12 ======================
 FEED_FILE="package/base-files/files/usr/share/opkg/distfeeds.conf"
 if [ -f "$FEED_FILE" ]; then
     sed -i 's#https://downloads.openwrt.org/releases#https://dl.openwrt.ai/releases#g' "$FEED_FILE"
 fi
 
-# ====================== 一、系统基础定制 ======================
+# ====================== 一、系统基础定制（全部增加文件存在判断） ======================
 # 管理IP改为192.168.2.1
-sed -i 's/192.168.1.1/192.168.2.1/g' package/base-files/files/bin/config_generate
+CONFIG_GEN="package/base-files/files/bin/config_generate"
+if [ -f "$CONFIG_GEN" ]; then
+    sed -i 's/192.168.1.1/192.168.2.1/g' "$CONFIG_GEN"
+    # 主机名 Kwrt
+    sed -i 's/OpenWrt/Kwrt/g' "$CONFIG_GEN"
+fi
+
 # root密码自定义
-sed -i 's/root::0:0:root:/root:$1$V4UetPzk$CYXluq4wUazHjmCDBCqXF.:0:0:root:/root:/bin/ash/' package/base-files/files/etc/shadow
-# 主机名 Kwrt
-sed -i 's/OpenWrt/Kwrt/g' package/base-files/files/bin/config_generate
+SHADOW_FILE="package/base-files/files/etc/shadow"
+if [ -f "$SHADOW_FILE" ]; then
+    sed -i 's/root::0:0:root:/root:$1$V4UetPzk$CYXluq4wUazHjmCDBCqXF.:0:0:root:/root:/bin/ash/' "$SHADOW_FILE"
+fi
+
 # 清空默认WAN绑定eth0，所有网卡默认LAN
-sed -i '/eth0/d' package/base-files/files/etc/board.d/99-default-network
+NET_FILE="package/base-files/files/etc/board.d/99-default-network"
+if [ -f "$NET_FILE" ]; then
+    sed -i '/eth0/d' "$NET_FILE"
+fi
+
 # 开启ZRAM内存压缩
 echo "zram-swap" >> target/linux/x86/Makefile
 
