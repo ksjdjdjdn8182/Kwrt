@@ -14,9 +14,9 @@ if [ -f "$SHADOW_FILE" ]; then
 fi
 
 # 清除默认WAN绑定eth0，所有网卡默认LAN
-NET_FILE="package/base-files/files/etc/board.d/99-default-network"
-if [ -f "$NET_FILE" ]; then
-    sed -i '/eth0/d' "$NET_FILE"
+NET_CONFIG="package/network/config"
+if [ -f "$NET_CONFIG" ]; then
+    sed -i '/eth0/d' "$NET_CONFIG"
 fi
 
 # x86_64 固件编译全局参数
