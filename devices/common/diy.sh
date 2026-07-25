@@ -94,17 +94,22 @@ wget -N https://raw.githubusercontent.com/coolsnowwolf/lede/master/target/linux/
 sed -i 's/max_requests 3/max_requests 20/g' package/network/services/uhttpd/files/uhttpd.config
 sed -i "s/tty\(0\|1\)::askfirst/tty\1::respawn/g" target/linux/*/base-files/etc/inittab
 
-date=`date +%m.%d.%Y`
+date=`date +"%m.%d.%Y"`
 sed -i -e "/\(# \)\?REVISION:=/c\REVISION:=$date" -e '/VERSION_CODE:=/c\VERSION_CODE:=$(REVISION)' include/version.mk
 
 sed -i 's/option timeout 30/option timeout 60/g' package/system/rpcd/files/rpcd.config
 
-# 核心修复：彻底删除带$(TOPDIR)变量的冲突sed语句，仅保留3条无冲突替换
+# ====================== 拆分两条独立sed，规避符号叠加冲突 ======================
+# 第一条：软件包名称替换（luci/nginx/python）
 sed -i \
 	-e "s|+\(luci\|luci-ssl\|uhttpd\)\( \|$\)|\2|" \
 	-e "s|+nginx\( \|$\)|+nginx-ssl\1|" \
 	-e 's|+python\( \|$\)|+python3|' \
 	package/feeds/kiddin9/*/Makefile
+
+# 第二条：单独路径替换，独立执行，不与上一段合并
+sed -i 's|../../lang|$(TOPDIR)/feeds/packages/lang|' package/feeds/kiddin9/*/Makefile
+# ===================================================================================
 
 sed -i "s/OpenWrt/Kwrt/g" package/base-files/files/bin/config_generate package/base-files/image-config.in package/network/config/wifi-scripts/files/lib/wifi/mac80211.uc config/Config-images.in Config.in include/u-boot.mk include/version.mk || true
 
