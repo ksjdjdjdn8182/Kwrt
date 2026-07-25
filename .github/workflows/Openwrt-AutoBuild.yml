@@ -87,13 +87,13 @@ jobs:
           make -j$(nproc) V=s 2>&1 | tee build_log.txt
 
       - name: 上传编译日志
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: Kwrt-编译日志
           path: openwrt/build_log.txt
 
       - name: 上传生成固件镜像
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: Kwrt-x86_64-固件镜像
           path: openwrt/bin/targets/x86/64/
