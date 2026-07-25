@@ -7,10 +7,10 @@ if [ -f "$CONFIG_GEN" ]; then
     sed -i 's/10.0.0.1/192.168.2.1/g' "$CONFIG_GEN"
 fi
 
-# 自定义ROOT密码
+# 加回root密码设置，改用echo覆盖文件替代复杂sed替换，彻底规避报错
 SHADOW_FILE="package/base-files/files/etc/shadow"
 if [ -f "$SHADOW_FILE" ]; then
-    sed -i 's/root::0:0:root:/root:$1$V4UetPzk$CYXluq4wUazHjmCDBCqXF.:0:0:root:/root:/bin/ash/' "$SHADOW_FILE"
+    echo 'root:$1$V4UetPzk$CYXluq4wUazHjmCDBCqXF.:0:0:root:/root:/bin/ash/' > $SHADOW_FILE
 fi
 
 # 清除默认WAN绑定eth0，所有网卡默认LAN
