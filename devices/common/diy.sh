@@ -1,5 +1,31 @@
 #!/bin/bash
 #=================================================
+# 补充脚本依赖函数，避免单独执行报错
+function git_clone_path() {
+  trap 'rm -rf "$tmpdir"' EXIT
+  branch="$1" rurl="$2" mv="$3"
+  [[ "$mv" != "mv" ]] && shift 2 || shift 3
+  rootdir="$PWD"
+  tmpdir="$(mktemp -d)" || exit 1
+  if [ ${#branch} -lt 10 ]; then
+  git clone -b "$branch" --depth 1 --filter=blob:none --sparse "$rurl" "$tmpdir"
+  cd "$tmpdir"
+  else
+  git clone --filter=blob:none --sparse "$rurl" "$tmpdir"
+  cd "$tmpdir"
+  git checkout $branch
+  fi
+  if [ "$?" != 0 ]; then
+    echo "error on $rurl"
+    exit 1
+  fi
+  git sparse-checkout init --cone
+  git sparse-checkout set $@
+  [[ "$mv" != "mv" ]] && cp -rn ./* $rootdir/ || mv -n $@/* $rootdir/$@/
+  cd $rootdir
+}
+export -f git_clone_path
+
 shopt -s extglob
 
 sed -i '$a src-git kiddin9 https://github.com/kiddin9/op-packages.git;main' feeds.conf.default
@@ -45,6 +71,7 @@ coremark wget-ssl curl autocore htop nano zram-swap kmod-lib-zstd kmod-tcp-bbr b
 
 sed -i "s/^.*vermagic$/\techo '1' > \$(LINUX_DIR)\/.vermagic/" include/kernel-defaults.mk
 
+# 如需不配置REPO_TOKEN，可删除下面整个循环代码
 status=$(curl -H "Authorization: token $REPO_TOKEN" -s "https://api.github.com/repos/kiddin9/op-packages/actions/runs" | jq -r '.workflow_runs[0].status')
 echo "$status"
 while [[ "$status" == "in_progress" || "$status" == "queued" ]];do
@@ -85,4 +112,5 @@ sed -i "s/OpenWrt/Kwrt/g" package/base-files/files/bin/config_generate package/b
 
 sed -i -e "s/set \${s}.country='\${country || ''}'/set \${s}.country='\${country || \"CN\"}'/g" -e "s/set \${s}.disabled=.*/set \${s}.disabled='0'/" package/network/config/wifi-scripts/files/lib/wifi/mac80211.uc
 
+# 新增：删除jool IPv6转换包
 rm -rf package/feeds/packages/jool
