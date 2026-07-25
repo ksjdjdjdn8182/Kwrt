@@ -71,10 +71,10 @@ coremark wget-ssl curl autocore htop nano zram-swap kmod-lib-zstd kmod-tcp-bbr b
 
 sed -i "s/^.*vermagic$/\techo '1' > \$(LINUX_DIR)\/.vermagic/" include/kernel-defaults.mk
 
-# 固定分支，完全删除GraphQL API查询代码，无任何curl请求tag逻辑
+# 直接固定分支，无任何GraphQL API查询逻辑
 REPO_BRANCH="openwrt-25.12"
 
-# 彻底注释掉kiddin9插件源API等待循环，不再发起github接口请求
+# 注释kiddin9 API等待循环，消除额外github接口请求
 # status=$(curl -H "Authorization: token $REPO_TOKEN" -s "https://api.github.com/repos/kiddin9/op-packages/actions/runs" | jq -r '.workflow_runs[0].status')
 # echo "$status"
 # while [[ "$status" == "in_progress" || "$status" == "queued" ]];do
@@ -85,8 +85,6 @@ REPO_BRANCH="openwrt-25.12"
 
 wget -N https://raw.githubusercontent.com/openwrt/packages/master/lang/golang/golang/Makefile -P feeds/packages/lang/golang/golang/
 
-#sed -i "/call Build\/check-size,\$\$(KERNEL_SIZE)/d" include/image.mk
-
 sed -i "/+= targz/d" include/image.mk
 
 git_clone_path master https://github.com/coolsnowwolf/lede mv target/linux/generic/hack-6.12
@@ -94,9 +92,7 @@ git_clone_path master https://github.com/coolsnowwolf/lede mv target/linux/gener
 rm -rf target/linux/generic/hack-6.12/767-net-phy-realtek-add-led*
 wget -N https://raw.githubusercontent.com/coolsnowwolf/lede/master/target/linux/generic/pending-6.12/613-netfilter_optional_tcp_window_check.patch -P target/linux/generic/pending-6.12/
 
-# find target/linux/x86 -name "config*" -exec bash -c 'cat kernel.conf >> "{}"' \;
 sed -i 's/max_requests 3/max_requests 20/g' package/network/services/uhttpd/files/uhttpd.config
-#rm -rf ./feeds/packages/lang/{golang,node}
 sed -i "s/tty\(0\|1\)::askfirst/tty\1::respawn/g" target/linux/*/base-files/etc/inittab
 
 date=`date +%m.%d.%Y`
@@ -115,5 +111,5 @@ sed -i "s/OpenWrt/Kwrt/g" package/base-files/files/bin/config_generate package/b
 
 sed -i -e "s/set \${s}.country='\${country || ''}'/set \${s}.country='\${country || \"CN\"}'/g" -e "s/set \${s}.disabled=.*/set \${s}.disabled='0'/" package/network/config/wifi-scripts/files/lib/wifi/mac80211.uc
 
-# 新增：删除jool IPv6转换包
+# 删除jool IPv6转换包
 rm -rf package/feeds/packages/jool
