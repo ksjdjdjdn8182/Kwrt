@@ -99,12 +99,12 @@ sed -i -e "/\(# \)\?REVISION:=/c\REVISION:=$date" -e '/VERSION_CODE:=/c\VERSION_
 
 sed -i 's/option timeout 30/option timeout 60/g' package/system/rpcd/files/rpcd.config
 
-# 全部4条sed语句统一使用#分隔符，彻底解决路径/冲突报错
+# 核心修复：全部sed替换分隔符改为 | 竖线，彻底规避/斜杠冲突
 sed -i \
-	-e "s#+\(luci\|luci-ssl\|uhttpd\)\( \|$\)#\2#" \
-	-e "s#+nginx\( \|$\)#+nginx-ssl\1#" \
-	-e 's#+python\( \|$\)#+python3#' \
-	-e 's#../../lang#$(TOPDIR)/feeds/packages/lang#' \
+	-e "s|+\(luci\|luci-ssl\|uhttpd\)\( \|$\)|\2|" \
+	-e "s|+nginx\( \|$\)|+nginx-ssl\1|" \
+	-e 's|+python\( \|$\)|+python3|' \
+	-e 's|../../lang|$(TOPDIR)/feeds/packages/lang|' \
 	package/feeds/kiddin9/*/Makefile
 
 sed -i "s/OpenWrt/Kwrt/g" package/base-files/files/bin/config_generate package/base-files/image-config.in package/network/config/wifi-scripts/files/lib/wifi/mac80211.uc config/Config-images.in Config.in include/u-boot.mk include/version.mk || true
