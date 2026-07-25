@@ -28,8 +28,8 @@ if [ -f "$NET_FILE" ]; then
     sed -i '/eth0/d' "$NET_FILE"
 fi
 
-# 开启ZRAM内存压缩
-echo "zram-swap" >> target/linux/x86/Makefile
+# 修复路径：当前目录target/linux/x86_64，回退两层到target/linux/x86/
+echo "zram-swap" >> ../../x86/Makefile
 
 # ====================== 二、强制补全全局依赖（消除openssl全套警告） ======================
 echo "CONFIG_PACKAGE_libopenssl=y" >> .config
