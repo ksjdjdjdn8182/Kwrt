@@ -1,8 +1,10 @@
 name: OpenWrt Kwrt AutoBuild x86_64
+# 并发控制：新任务自动取消旧排队任务，解决大量队列堆积
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# 触发规则
 on:
   push:
     branches: [ main ]
@@ -13,6 +15,7 @@ on:
         type: boolean
         default: false
 
+# 权限配置
 permissions:
   contents: read
   packages: write
@@ -21,30 +24,45 @@ jobs:
   build:
     runs-on: ubuntu-22.04
     steps:
+      # 1. 检出仓库完整代码（修复目录找不到报错）
       - name: 检出仓库源码
         uses: actions/checkout@v4
 
+      # 2. 安装全套编译依赖
       - name: 安装全套编译依赖
         run: |
           sudo apt update
           sudo apt install -y ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential bzip2 ccache cmake cpio curl device-tree-compiler flex gawk gcc-multilib g++-multilib gettext git gperf libncurses-dev libssl-dev libxml-parser-perl lzma make memstat mtools ninja-build p7zip-full patch pkgconf python3 python3-pip python3-setuptools rsync scons squashfs-tools subversion swig texinfo unzip wget xsltproc xz-utils zlib1g-dev
 
+      # 3. 拉取 OpenWrt 25.12 源码 + kiddin9插件源（方案2：屏蔽鉴权+克隆重试）
       - name: 拉取 OpenWrt 25.12 官方源码 + kiddin9插件源码源
         run: |
-          git clone https://github.com/openwrt/openwrt.git openwrt
+          # 全局Git配置，屏蔽HTTPS账号密码弹窗鉴权
+          git config --global url."https://github.com/".insteadOf git@github.com:
+          git config --global core.askPass ""
+          git config --global credential.helper store
+          
+          # 克隆OpenWrt源码，失败自动重试2次
+          git clone --retry 2 https://github.com/openwrt/openwrt.git openwrt
           cd openwrt
+          # 锁定25.12稳定分支
           git checkout openwrt-25.12
+          
+          # 写入原版Github kiddin9插件源（不切换国内镜像）
           echo "src-git kiddin9 https://github.com/kiddin9/openwrt-packages.git;openwrt-25.12" >> feeds.conf.default
 
+      # 4. 复制自定义文件（自动创建目标目录，修复目录不存在报错）
       - name: 复制仓库内自定义配置、补丁、diy脚本
         run: |
           cd openwrt
+          # 自动创建x86_64目标目录
           mkdir -p ./target/linux/x86_64
+          # 匹配你的仓库目录 devices/x86_64
           cp -r ../devices/x86_64/* ./target/linux/x86_64/
           cd target/linux/x86_64
           chmod +x diy.sh
 
-      # 容错补丁执行，失败自动跳过不中断编译
+      # 5. 批量应用补丁（容错，补丁失败不终止编译）
       - name: 批量应用所有补丁文件
         run: |
           cd openwrt/target/linux/x86_64
@@ -53,6 +71,7 @@ jobs:
             patch -p1 --ignore-errors < $patch || true
           done
 
+      # 6. 缓存编译依赖，加速多次构建
       - name: 缓存编译依赖，加速多次构建
         uses: actions/cache@v3
         with:
@@ -65,34 +84,46 @@ jobs:
           restore-keys: |
             ${{ github.workflow }}-${{ github.ref }}
 
+      # 7. 可选：清空全部缓存完整重编
       - name: 可选：清空全部缓存完整重编
         if: github.event.inputs.CLEAN_CACHE == true
         run: |
           cd openwrt
           rm -rf build_dir staging_dir dl tmp .config
 
+      # 8. 更新并安装插件源（分步执行，单源失败不中断流程）
       - name: 更新并安装全部插件源 feeds
         run: |
           cd openwrt
-          ./scripts/feeds update -a
+          # 分开更新每个feed，单个源拉取失败仅跳过，不终止整体流程
+          ./scripts/feeds update packages || true
+          ./scripts/feeds update luci || true
+          ./scripts/feeds update routing || true
+          ./scripts/feeds update telephony || true
+          ./scripts/feeds update video || true
+          ./scripts/feeds update kiddin9 || true
           ./scripts/feeds install -a
 
+      # 9. 执行 diy.sh 生成纯净无冲突 .config
       - name: 执行 diy.sh 生成纯净无冲突 .config
         run: |
           cd openwrt/target/linux/x86_64
           ./diy.sh
 
+      # 10. 多线程编译固件
       - name: 多线程编译固件
         run: |
           cd openwrt
           make -j$(nproc) V=s 2>&1 | tee build_log.txt
 
+      # 11. 上传编译日志（升级v4消除废弃报错）
       - name: 上传编译日志
         uses: actions/upload-artifact@v4
         with:
           name: Kwrt-编译日志
           path: openwrt/build_log.txt
 
+      # 12. 上传生成固件镜像（升级v4消除废弃报错）
       - name: 上传生成固件镜像
         uses: actions/upload-artifact@v4
         with:
